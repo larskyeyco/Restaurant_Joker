@@ -1,0 +1,98 @@
+﻿@page "/orderhist"
+@inject CompanyItemService companyItemService
+@inject CompanyService companyService
+@inject ShoppingCartService shoppingCartService
+@inject IToastService toastService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<IdentityUser> UserManager
+@inject OrderInformationService orderInformationService
+@inject NavigationManager NavigationManager
+@attribute [Authorize]
+
+<h1>Order History</h1>
+
+@if (orderInformations == null)
+{
+    <SpinLoader IsLoading="isLoading">
+        <LoadingTemplate>
+            <br /><br /><br />
+            <Circle Center="true" Color="blue" Size="100px"></Circle>
+        </LoadingTemplate>
+    </SpinLoader>
+}
+else
+{
+    <table class='table table-hover'>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Phone Number</th>
+                <th>Additional Instructions</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var orderInformation in orderInformations.Where(x => x.IndetityUserId == userIdStorage))
+            {
+                <tr>
+                    <td>@orderInformation.Name</td>
+                    <td>@orderInformation.Address</td>
+                    <td>@orderInformation.PhoneNumber</td>
+                    <td>@orderInformation.AdditionalInstructions</td>
+                    <td>
+                        <button @onclick="@MoveToDetails" class="btn btn-warning">Details</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code   {
+    List<CompanyItem> companyItems;
+    List<Company> companies;
+    List<ShoppingCart> shoppingCarts;
+    List<ShoppingCart> shoppingCartsSummary;
+    List<OrderInformation> orderInformations;
+    bool isLoading = true;
+    string currentUser;
+    string userIdStorage = "";
+    double totalprice;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await load();
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    protected async Task load()
+    {
+        companyItems = await companyItemService.GetCompanyItemsAsync();
+        companies = await companyService.GetCompaniesAsync();
+        shoppingCarts = await shoppingCartService.GetShoppingCartsAsync();
+        shoppingCartsSummary = await shoppingCartService.SummaryShoppingCartsAsync();
+        orderInformations = await orderInformationService.GetOrderInformationsAsync();
+        await LogUsername();
+    }
+    private async Task LogUsername()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            var currentUser = await UserManager.GetUserAsync(user);
+            userIdStorage = ($"{currentUser.Id}");
+        }
+        else
+        {
+            userIdStorage = ("The user is NOT authenticated.");
+        }
+    }
+    protected void MoveToDetails()
+    {
+        NavigationManager.NavigateTo("/orderhist");
+    }
+}

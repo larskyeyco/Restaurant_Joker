@@ -1,0 +1,214 @@
+﻿@page "/companyitemmenu"
+@inject CompanyItemService companyItemService
+@inject CompanyService companyService
+@inject IToastService toastService
+@attribute [Authorize(Roles = "admin")]
+@using System.IO
+@using Microsoft.AspNetCore.Hosting
+@inject IWebHostEnvironment env
+
+
+<h1>Company Menu Items</h1>
+
+@if (companyItems == null || companies == null)
+{
+    <SpinLoader IsLoading="isLoading">
+        <LoadingTemplate>
+            <br /><br /><br />
+            <Circle Center="true" Color="blue" Size="100px"></Circle>
+        </LoadingTemplate>
+    </SpinLoader>
+}
+else
+{
+    <button @onclick="@Add" class="btn btn-success">Add Menu Item to Company</button>
+    <br />
+    <br />
+    <table class='table table-hover'>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Company Name</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var companyItem in companyItems)
+            {
+                <tr>
+                    <td>@companyItem.Name</td>
+                    <td>@companyItem.Description</td>
+                    <td>@companyItem.Price</td>
+                    <td>@companyItem.Company.Name</td>
+                    <td>
+                        <button @onclick="@(() => Delete(companyItem.Id))" class="btn btn-warning">Delete</button>
+                        <button @onclick="@(() => Show(companyItem.Id))" class="btn btn-warning">Update</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <br />
+    <br />
+}
+
+@if (companyItems != null && mode == MODE.Add)
+{
+    <input placeholder="Menu Item Name" @bind="@nameCompanyItem" />
+    <br />
+    <input placeholder="Menu Item Description" @bind="@description" />
+    <br />
+    <label>Price</label>
+    <input type="number" @bind="@price" />
+    <br />
+    <fieldset>
+        <select @bind="@companyId">
+            @foreach (var company in companies)
+            {
+                <option value="@company.Id">@company.Name</option>
+            }
+        </select>
+    </fieldset>
+    <br />
+    <h1>@MessageUpload</h1>
+    <InputFile OnChange="OnInputFileChange" multiple />
+    <br />
+    <button @onclick="@Insert" class="btn btn-warning">Insert</button>
+}
+
+@if (companyItems != null && mode == MODE.EditDelete)
+{
+
+    <input placeholder="Menu Item Name" @bind="@nameCompanyItem" />
+    <br />
+    <input placeholder="Menu Item Description" @bind="@description" />
+    <br />
+    <input type="number" @bind="@price" />
+    <br />
+    <fieldset>
+        <select @bind="@companyId">
+            @foreach (var company in companies)
+            {
+                <option value="@company.Id">@company.Name</option>
+            }
+        </select>
+    </fieldset>
+    <br />
+    <button @onclick="@Update" class="btn btn-warning">Update</button>
+    <span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+}
+
+@functions {
+    List<CompanyItem> companyItems;
+    List<Company> companies;
+    int companyId;
+    string nameCompanyItem;
+    string description;
+    double price;
+    int itemMenuItemId;
+    private enum MODE { None, Add, EditDelete };
+    MODE mode = MODE.None;
+    CompanyItem companyItem;
+    bool isLoading = true;
+    string MessageUpload = "No file(s) selected";
+    IReadOnlyList<IBrowserFile> selectedFiles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await load();
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    protected async Task load()
+    {
+        companyItems = await companyItemService.GetCompanyItemsAsync();
+        companies = await companyService.GetCompaniesAsync();
+    }
+
+    protected async Task Insert()
+    {
+        foreach (var file in selectedFiles)
+        {
+            Stream stream = file.OpenReadStream();
+            var path = $"{env.WebRootPath}\\{file.Name}";
+            FileStream fs = File.Create(path);
+            await stream.CopyToAsync(fs);
+            stream.Close();
+            fs.Close();
+
+            CompanyItem ci = new CompanyItem()
+            {
+                Name = nameCompanyItem,
+                Description = description,
+                Image = file.Name,
+                Price = price,
+                CompanyId = companyId
+            };
+
+            await companyItemService.InsertCompanyItemAsync(ci);
+            toastService.ShowSuccess($"{nameCompanyItem} has been added.");
+            ClearFields();
+            await load();
+            mode = MODE.None;
+        }
+        MessageUpload = $"{selectedFiles.Count} file(s) uploaded on server";
+        this.StateHasChanged();
+
+    }
+    protected void ClearFields()
+    {
+        nameCompanyItem = string.Empty;
+        description = string.Empty;
+        price = 0;
+        companyId = 0;
+    }
+    protected void Add()
+    {
+        ClearFields();
+        mode = MODE.Add;
+    }
+
+    protected async Task Update()
+    {
+        CompanyItem ci = new CompanyItem()
+        {
+            Name = nameCompanyItem,
+            Description = description,
+            Price = price,
+            CompanyId = companyId
+        };
+        await companyItemService.UpdateCompanyItemAsync(itemMenuItemId, ci);
+        ClearFields();
+        await load();
+        mode = MODE.None;
+        var compItemName = companyItems.Where(x => x.Id == itemMenuItemId).Select(y => y.Name).FirstOrDefault();
+        toastService.ShowSuccess($"{compItemName} has been updated.");
+    }
+    protected async Task Delete(int id)
+    {
+        var compItemName = companyItems.Where(x => x.Id == id).Select(y => y.Name).FirstOrDefault();
+        await companyItemService.DeleteCompanyItemAsync(id);
+        ClearFields();
+        await load();
+        toastService.ShowSuccess($"{compItemName} has been deleted.");
+    }
+    protected async Task Show(int id)
+    {
+        companyItem = await companyItemService.GetCompanyItemByIdAsync(id);
+        itemMenuItemId = companyItem.Id;
+        nameCompanyItem = companyItem.Name;
+        description = companyItem.Description;
+        price = companyItem.Price;
+        companyId = companyItem.CompanyId;
+        mode = MODE.EditDelete;
+    }
+    private void OnInputFileChange(InputFileChangeEventArgs e)
+    {
+        selectedFiles = e.GetMultipleFiles();
+        MessageUpload = $"{selectedFiles.Count} file(s) selected";
+        this.StateHasChanged();
+    }
+}

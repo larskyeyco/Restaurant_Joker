@@ -1,0 +1,133 @@
+﻿@page "/"
+@inject CompanyItemService companyItemService
+@inject CompanyService companyService
+@inject ShoppingCartService shoppingCartService
+@inject IToastService toastService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<IdentityUser> UserManager
+
+    @if (companyItems == null || companies == null)
+    {
+        <SpinLoader IsLoading="isLoading">
+            <LoadingTemplate>
+                <br /><br /><br />
+                <Circle Center="true" Color="blue" Size="100px"></Circle>
+            </LoadingTemplate>
+        </SpinLoader>
+    }
+    else
+    {
+        @foreach (var company in companies.OrderBy(x => x.DisplayOrder))
+        {
+            @if (companyItems.Where(c => c.CompanyId == company.Id).Count() > 0)
+            {
+                <div class="row container pb-3 backgroundWhite">
+                    <div class="col-12">
+                        <div class="row">
+                            <h2 class="text-success pl-1"><b>@company.Name</b></h2>
+
+                            <div class="col-12">
+                                <div class="row my-3">
+                                    @foreach (var companyItem in companyItems.Where(c => c.CompanyId == company.Id))
+                                    {
+                                        <div class="col-lg-3 col-xl-3 col-md-6 pb-4">
+                                            <div class="card" style="border:2px solid #008cba; border-radius: 5px; ">
+                                                <div class="pl-3 pt-1 text-center">
+                                                    <h3 class="card-title text-primary"><b>@companyItem.Name</b></h3>
+                                                </div>
+                                                <div class="d-flex justify-content-between form-control" style="border:0px;">
+                                                    <div class="col-6 badge badge-warning text-center" style="font-size:14px;">
+                                                        Description
+                                                    </div>
+                                                    <div class="col-6 text-right h4" style="color:maroon;"><b>$ @companyItem.Price</b></div>
+                                                </div>
+                                                <img src="./@companyItem.Image" class="card-img-top p-2 rounded" style="width:245px; height:200px;" />
+                                                <button @onclick="@(() => AddToShoppingCart(companyItem.Id))" class="btn btn-warning">Add to Cart</button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    }
+    @code{
+        List<CompanyItem> companyItems;
+        List<Company> companies;
+        List<ShoppingCart> shoppingCarts;
+        ShoppingCart shoppingCart;
+        bool isLoading = true;
+        string currentUser;
+        string userIdStorage;
+
+        protected override async Task OnInitializedAsync()
+        {
+            await load();
+            isLoading = false;
+            StateHasChanged();
+        }
+
+        protected async Task load()
+        {
+            companyItems = await companyItemService.GetCompanyItemsAsync();
+            companies = await companyService.GetCompaniesAsync();
+            shoppingCarts = await shoppingCartService.GetShoppingCartsAsync();
+            await LogUsername();
+        }
+
+        protected async Task AddToShoppingCart(int id)
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            var shoppingCartById = shoppingCarts.Where(x => x.IndetityUserId == userIdStorage && x.CompanyItemId == id).FirstOrDefault();
+            if (user.Identity.IsAuthenticated)
+            {
+                if (shoppingCarts.Where(x => x.IndetityUserId == userIdStorage && x.CompanyItemId == id).FirstOrDefault() == null)
+                {
+                    ShoppingCart sc = new ShoppingCart()
+                    {
+                        Count = 1,
+                        IndetityUserId = userIdStorage,
+                        CompanyItemId = id
+                    };
+                    await shoppingCartService.InsertShoppingCartAsync(sc);
+                    await load();
+                    var itemName = companyItems.Where(x => x.Id == id).Select(y => y.Name).FirstOrDefault();
+                    toastService.ShowSuccess($"{itemName} has been added to cart.");
+                }
+                else
+                {
+                    ShoppingCart sc = new ShoppingCart()
+                    {
+                        Count = shoppingCartById.Count + 1
+                    };
+                    await shoppingCartService.UpdateShoppingCartAsync(shoppingCartById.Id, sc);
+                    await load();
+                    toastService.ShowSuccess($"{shoppingCartById.CompanyItem.Name} count has been increased in cart.");
+                }
+            }
+            else
+            {
+                toastService.ShowInfo("Login to add product to Cart.");
+            }
+        }
+
+        private async Task LogUsername()
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity.IsAuthenticated)
+            {
+                var currentUser = await UserManager.GetUserAsync(user);
+                userIdStorage = ($"{currentUser.Id}");
+            }
+            else
+            {
+                userIdStorage = ("The user is NOT authenticated.");
+            }
+        }
+    }

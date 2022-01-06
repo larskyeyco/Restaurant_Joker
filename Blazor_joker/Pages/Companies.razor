@@ -1,0 +1,145 @@
+﻿@page "/companies"
+@inject CompanyService companyService
+@inject IToastService toastService
+@attribute [Authorize(Roles = "admin")]
+
+<h1>Companies</h1>
+
+@if (companies == null)
+{
+    <SpinLoader IsLoading="isLoading">
+        <LoadingTemplate>
+            <br /><br /><br />
+                      <Circle Center="true" Color="blue" Size="100px"></Circle>
+        </LoadingTemplate>
+    </SpinLoader>
+}
+else
+{
+    <button @onclick="@Add" class="btn btn-success">Add Company</button>
+    <br />
+    <br />
+    <table class='table table-hover'>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Display Order</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var company in companies)
+            {
+                <tr>
+                    <td>@company.Name</td>
+                    <td>@company.DisplayOrder</td>
+                    <td>
+                        <button @onclick="@(() => Delete(company.Id))" class="btn btn-warning">Delete</button>
+                        <button @onclick="@(() => Show(company.Id))" class="btn btn-warning">Update</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <br />
+    <br />
+}
+
+@if (companies != null && mode == MODE.Add)
+{
+    <input placeholder="Company Name" @bind="@nameCompany" />
+    <br />
+    <input type="number" placeholder="Display Order" @bind="displayOrder" />
+    <br />
+    <button @onclick="@Insert" class="btn btn-warning">Insert</button>
+}
+
+@if (companies != null && mode == MODE.EditDelete)
+{
+    <input placeholder="Company Name" @bind="@nameCompany" />
+    <br />
+    <input type="number" placeholder="@displayOrder" @bind="@displayOrder" />
+    <br />
+    <button @onclick="@Update" class="btn btn-primary">Update</button>
+    <span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+}
+
+@code {
+    List<Company> companies;
+    int companyId;
+    string nameCompany;
+    int displayOrder;
+    private enum MODE { None, Add, EditDelete };
+    MODE mode = MODE.None;
+    Company company;
+    bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await load();
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    protected async Task load()
+    {
+        companies = await companyService.GetCompaniesAsync();
+    }
+
+    protected async Task Insert()
+    {
+        Company c = new Company()
+        {
+            Name = nameCompany,
+            DisplayOrder = displayOrder
+        };
+
+        await companyService.InsertCompanyAsync(c);
+        toastService.ShowSuccess($"{nameCompany} has been added.");
+        ClearFields();
+        await load();
+        mode = MODE.None;
+
+    }
+    protected void ClearFields()
+    {
+        nameCompany = string.Empty;
+        displayOrder = 0;
+    }
+    protected void Add()
+    {
+        ClearFields();
+        mode = MODE.Add;
+    }
+
+    protected async Task Update()
+    {
+        Company c = new Company()
+        {
+            Name = nameCompany,
+            DisplayOrder = displayOrder
+        };
+        await companyService.UpdateCompanyAsync(companyId, c);
+        ClearFields();
+        await load();
+        mode = MODE.None;
+        var compName = companies.Where(x => x.Id == companyId).Select(y => y.Name).FirstOrDefault();
+        toastService.ShowSuccess($"{compName} has been updated.");
+    }
+    protected async Task Delete(int id)
+    {
+        var compName = companies.Where(x => x.Id == id).Select(y => y.Name).FirstOrDefault();
+        await companyService.DeleteCompanyAsync(id);
+        ClearFields();
+        await load();
+        toastService.ShowSuccess($"{compName} has been deleted.");
+    }
+    protected async Task Show(int id)
+    {
+        company = await companyService.GetCompanyByIdAsync(id);
+        companyId = company.Id;
+        nameCompany = company.Name;
+        displayOrder = company.DisplayOrder;
+        mode = MODE.EditDelete;
+    }
+}

@@ -1,0 +1,172 @@
+﻿@page "/cart"
+@inject CompanyItemService companyItemService
+@inject CompanyService companyService
+@inject ShoppingCartService shoppingCartService
+@inject IToastService toastService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<IdentityUser> UserManager
+@attribute [Authorize]
+
+@if (companyItems == null || companies == null || shoppingCarts == null)
+{
+    <SpinLoader IsLoading="isLoading">
+        <LoadingTemplate>
+            <br /><br /><br />
+            <Circle Center="true" Color="blue" Size="100px"></Circle>
+        </LoadingTemplate>
+    </SpinLoader>
+}
+else
+{
+    <div>
+        <div class="container">
+            <div class="card">
+                <div class="card-header bg-dark text-light ml-0 row container">
+                    <div class="col-6">
+                        <i class="fa fa-shopping-cart"></i> &nbsp;
+                        Shopping Cart
+                    </div>
+                    <div class="col-6 text-right">
+                        <a href="/" class="btn btn-outline-info btn-sm">Continue Shopping</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @foreach (var cart in shoppingCarts.Where(x => x.IndetityUserId == userIdStorage))
+                    {
+                        @foreach (var companyItem in companyItems.Where(y => y.Id == cart.CompanyItemId))
+                        {
+                            @if (shoppingCarts.Where(c => c.IndetityUserId == userIdStorage).Count() > 0)
+                            {
+                                <div class="row">
+                                    <div class="d-none d-lg-block col-lg-2 text-center py-2">
+                                        <img src="https://i.imgur.com/v6c0uNA.jpg" class="rounded" width="120" height="80" />
+                                    </div>
+                                    <div class="col-12 text-sm-center col-lg-5 text-lg-left">
+                                        <h4><strong>@companyItem.Name</strong></h4>
+                                    </div>
+                                    <div class="col-12 text-sm-center col-lg-5 text-lg-right row">
+                                        <div class="col-4 text-md-right" style="padding-top:5px;">
+                                            <h6><strong>$@companyItem.Price <span class="text-muted">x</span> @cart.Count </strong></h6>
+                                        </div>
+                                        <div class="col-6 col-sm-4 col-lg-6">
+                                            <div class="float-right mx-1">
+                                                <button @onclick="@(() => IncreaseCount(cart.Id))" class="btn btn-warning">
+                                                    <i class="fas fa-plus"></i>
+                                                </button>
+                                            </div>
+                                            <div class="float-right mx-1">
+                                                <button @onclick="@(() => DecreaseCount(cart.Id))" class="btn btn-warning">
+                                                    <i class="fas fa-minus"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-2 col-sm-4 col-lg-2 text-right">
+                                            <button @onclick="@(() => DeleteItemInCart(cart.Id))" class="btn btn-warning">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <hr />
+                            }
+                        }
+                    }
+                    <div class="row">
+                        <div class="col-12 col-md-5">
+                        </div>
+                        <div class="col-12 col-md-6 offset-md-1 col-lg-4 offset-lg-3 pr-4">
+                            <ul class="list-group">
+                                <li class="list-group-item d-flex justify-content-between bg-light">
+                                    <span class="text-info"> Total (USD)</span>
+                                    <strong class="text-info">$ <span id="txtOrderTotal">@shoppingCartsSummary.Where(z => z.IndetityUserId == userIdStorage).Sum(p => p.Count * p.CompanyItem.Price)</span></strong>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="col-12 col-lg-4 offset-lg-8 col-md-6 offset-md-6">
+                        <a href="/Summary" class="btn btn-success form-control">Summary</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<CompanyItem> companyItems;
+    List<Company> companies;
+    List<ShoppingCart> shoppingCarts;
+    List<ShoppingCart> shoppingCartsSummary;
+    bool isLoading = true;
+    string currentUser;
+    string userIdStorage = "";
+    double totalprice;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await load();
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    protected async Task load()
+    {
+        companyItems = await companyItemService.GetCompanyItemsAsync();
+        companies = await companyService.GetCompaniesAsync();
+        shoppingCarts = await shoppingCartService.GetShoppingCartsAsync();
+        shoppingCartsSummary = await shoppingCartService.SummaryShoppingCartsAsync();
+        await LogUsername();
+    }
+    private async Task LogUsername()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            var currentUser = await UserManager.GetUserAsync(user);
+            userIdStorage = ($"{currentUser.Id}");
+        }
+        else
+        {
+            userIdStorage = ("The user is NOT authenticated.");
+        }
+    }
+    private async Task IncreaseCount(int id)
+    {
+        var shoppingCartById = shoppingCarts.Where(x => x.IndetityUserId == userIdStorage && x.Id == id).FirstOrDefault();
+        ShoppingCart sc = new ShoppingCart()
+        {
+            Count = shoppingCartById.Count + 1
+        };
+        await shoppingCartService.UpdateShoppingCartAsync(shoppingCartById.Id, sc);
+        await load();
+    }
+    private async Task DecreaseCount(int id)
+    {
+        var shoppingCartById = shoppingCarts.Where(x => x.IndetityUserId == userIdStorage && x.Id == id).FirstOrDefault();
+        if (shoppingCartById.Count > 1)
+        {
+            ShoppingCart sc = new ShoppingCart()
+            {
+                Count = shoppingCartById.Count - 1
+            };
+
+            await shoppingCartService.UpdateShoppingCartAsync(shoppingCartById.Id, sc);
+            await load();
+        }
+        else
+        {
+            toastService.ShowWarning("Count cant be less then 1.");
+        }
+    }
+    private async Task DeleteItemInCart(int id)
+    {
+        var cartItemName = shoppingCarts.Where(x => x.Id == id).Select(y => y.CompanyItem.Name).FirstOrDefault();
+        await shoppingCartService.DeleteShoppingCart(id);
+        await load();
+        toastService.ShowSuccess($"{cartItemName} has been deleted.");
+    }
+}

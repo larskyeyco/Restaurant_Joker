@@ -1,0 +1,106 @@
+﻿@page "/users"
+@inject UserService userService
+@inject IToastService toastService
+@attribute [Authorize(Roles = "admin")]
+
+<h1>Users</h1>
+
+@if (identityUsers == null)
+{
+    {
+        <SpinLoader IsLoading="isLoading">
+            <LoadingTemplate>
+                <br /><br /><br />
+                <Circle Center="true" Color="blue" Size="100px"></Circle>
+            </LoadingTemplate>
+        </SpinLoader>
+    }
+}
+else
+{
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>User Name</th>
+                <th>Lockout End</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var idUser in identityUsers)
+            {
+                <tr>
+                    <td>@idUser.UserName</td>
+                    <td>
+                        @if (idUser.LockoutEnd == null)
+                        {
+                            @notBlocked
+                        }
+                        else
+                        {
+                            @idUser.LockoutEnd
+                        }
+                    </td>
+                    <td>
+                        @if (idUser.LockoutEnd > DateTime.Now)
+                        {
+                            <button @onclick="@(() => Unlock(idUser.Id))" class="btn btn-warning">Unlock</button>
+                        }
+                        else
+                        {
+                            <button @onclick="@(() => Lock(idUser.Id))" class="btn btn-warning">Lock</button>
+                        }
+                        &nbsp;&nbsp;&nbsp;
+                        <button @onclick="@(() => Delete(idUser.Id))" class="btn btn-warning">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@functions{
+    List<IdentityUser> identityUsers;
+    bool isLoading = true;
+    DateTime lockoutEnd = DateTime.Now;
+    string notBlocked = "User is not locked.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await load();
+        isLoading = false;
+        StateHasChanged();
+    }
+    protected async Task load()
+    {
+        identityUsers = await userService.GetUsersAsync();
+    }
+    protected async Task Delete(string id)
+    {
+        await userService.DeleteUserAsync(id);
+        await load();
+    }
+    protected async Task Lock(string id)
+    {
+        IdentityUser c = new IdentityUser()
+        {
+            LockoutEnd = lockoutEnd.AddYears(100)
+        };
+        await userService.LockUnlockAsync(id, c);
+        await load();
+        var uName = identityUsers.Where(x => x.Id == id).Select(y => y.UserName).FirstOrDefault();
+        toastService.ShowSuccess($"{uName} has been locked.");
+    }
+
+    protected async Task Unlock(string id)
+    {
+        IdentityUser c = new IdentityUser()
+        {
+            LockoutEnd = null
+        };
+        await userService.LockUnlockAsync(id, c);
+        await load();
+        var uName = identityUsers.Where(x => x.Id == id).Select(y => y.UserName).FirstOrDefault();
+        toastService.ShowSuccess($"{uName} has been unlocked.");
+    }
+}

@@ -1,0 +1,207 @@
+﻿@page "/summary"
+@inject CompanyItemService companyItemService
+@inject CompanyService companyService
+@inject ShoppingCartService shoppingCartService
+@inject IToastService toastService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<IdentityUser> UserManager
+@inject OrderInformationService orderInformationService
+@inject NavigationManager NavigationManager
+@inject OrderHistoryService orderHistoryService
+@attribute [Authorize]
+
+@if (companyItems == null || companies == null || shoppingCarts == null)
+{
+    <SpinLoader IsLoading="isLoading">
+        <LoadingTemplate>
+            <br /><br /><br />
+            <Circle Center="true" Color="blue" Size="100px"></Circle>
+        </LoadingTemplate>
+    </SpinLoader>
+}
+else
+{
+    <div class="backgroundWhiteBorder">
+        <div class="container">
+            <div class="card">
+                <div class="card-header bg-dark text-light ml-0 row container">
+                    <div class="col-6">
+                        <i class="fa fa-shopping-cart"></i> &nbsp;
+                        Order Summary
+                    </div>
+                    <div class="col-6 text-right">
+                        <a href="/cart" class="btn btn-outline-info btn-sm">Back to Cart</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="container rounded p-2">
+                        <div class="row">
+                            <div class="col-12 col-lg-6 pb-4">
+                                <div class="row">
+                                    <h4 class="d-flex justify-content-between align-items-center mb-3">
+                                        <span class="text-info">PickUp Details:</span>
+                                    </h4>
+                                </div>
+                                <div class="row my-1">
+                                    <div class="col-3">
+                                        <label>Name</label>
+                                    </div>
+                                    <div class="col-9">
+                                        <input placeholder="Name" @bind="@customerName" />
+                                    </div>
+                                </div>
+                                <div class="row my-1">
+                                    <div class="col-3">
+                                        <label>Address</label>
+                                    </div>
+                                    <div class="col-9">
+                                        <input placeholder="Address" @bind="@customerAddress" />
+                                    </div>
+                                </div>
+                                <div class="row my-1">
+                                    <div class="col-3">
+                                        <label>Phone Number</label>
+                                    </div>
+                                    <div class="col-9">
+                                        <input placeholder="Phone Number" @bind="@customerPhoneNumber" />
+                                    </div>
+                                </div>
+                                <div class="row my-1">
+                                    <div class="col-3">
+                                        <label>Additional Instructions: </label>
+                                    </div>
+                                    <div class="col-9">
+                                        <input placeholder="Additional Instructions" @bind="@customerInsructions" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-5 offset-lg-1">
+                                <h4 class="d-flex justify-content-between align-items-center mb-3">
+                                    <span class="text-info">Order Summary:</span>
+                                </h4>
+                                <ul class="list-group mb-3">
+                                    @{ var total = 0.0;}
+                                    @foreach (var shoppingCart in shoppingCarts.Where(x => x.IndetityUserId == userIdStorage))
+                                    {
+                                        @foreach (var companyItem in companyItems.Where(y => y.Id == shoppingCart.CompanyItemId))
+                                        {
+                                            @if (shoppingCarts.Where(c => c.IndetityUserId == userIdStorage).Count() > 0)
+                                            {
+                                                <li class="list-group-item d-flex justify-content-between">
+                                                    <div>
+                                                        <h6 class="my-0">@companyItem.Name</h6>
+                                                        <small class="text-muted">Quantity: @shoppingCart.Count</small>
+                                                    </div>
+                                                    <span class="text-muted">$@(companyItem.Price * shoppingCart.Count)</span>
+                                                    @{ total += (companyItem.Price * shoppingCart.Count);}
+                                                </li>
+                                            }
+                                        }
+                                    }
+                                    <li class="list-group-item d-flex justify-content-between bg-light">
+                                        <small class="text-info">Total (USD)</small>
+                                        <strong class="text-info">$@total.ToString("0.00")</strong>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="row">
+                        <button type="submit" id="btnPlaceOrder" @onclick="@PlaceOrder" value="Place Order" class="btn btn-success form-control">Place Order</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<CompanyItem> companyItems;
+    List<Company> companies;
+    List<ShoppingCart> shoppingCarts;
+    List<ShoppingCart> shoppingCartsSummary;
+    List<OrderInformation> orderInformation;
+    List<OrderHistory> orderHistories;
+    bool isLoading = true;
+    string currentUser;
+    string userIdStorage = "";
+    double totalprice;
+    string customerName, customerPhoneNumber, customerInsructions, customerAddress;
+    protected override async Task OnInitializedAsync()
+    {
+        await load();
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    protected async Task load()
+    {
+        companyItems = await companyItemService.GetCompanyItemsAsync();
+        companies = await companyService.GetCompaniesAsync();
+        shoppingCarts = await shoppingCartService.GetShoppingCartsAsync();
+        shoppingCartsSummary = await shoppingCartService.SummaryShoppingCartsAsync();
+        orderInformation = await orderInformationService.GetOrderInformationsAsync();
+        await LogUsername();
+    }
+    private async Task LogUsername()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            var currentUser = await UserManager.GetUserAsync(user);
+            userIdStorage = ($"{currentUser.Id}");
+        }
+        else
+        {
+            userIdStorage = ("The user is NOT authenticated.");
+        }
+    }
+    private async Task PlaceOrder()
+    {
+        if(customerName != null || customerAddress != null || customerPhoneNumber != null)
+        {
+            OrderInformation oi = new OrderInformation()
+            {
+                Name = customerName,
+                Address = customerAddress,
+                PhoneNumber = customerPhoneNumber,
+                AdditionalInstructions = customerInsructions,
+                IndetityUserId = userIdStorage
+            };
+            await orderInformationService.InsertOrderInformationsAsync(oi);
+            toastService.ShowInfo("Order has been placed.");
+            List<int> IdsList = new List<int>();
+            IdsList = shoppingCarts.Where(x => x.IndetityUserId == userIdStorage).Select(y => y.Id).ToList();
+
+            foreach (var shoppingCart in shoppingCarts.Where(x => x.IndetityUserId == userIdStorage))
+            {
+                foreach (var companyItem in companyItems.Where(y => y.Id == shoppingCart.CompanyItemId))
+                {
+                    OrderHistory oh = new OrderHistory()
+                    {
+                        Name = companyItem.Name,
+                        Count = shoppingCart.Count,
+                        Price = companyItem.Price * shoppingCart.Count,
+                        CustomerId = oi.Id
+                    };
+                    await orderHistoryService.InsertOrderHistoryAsync(oh);
+                }
+            }
+            foreach (var id in IdsList)
+            {
+                var shoppingCartItem = shoppingCarts.Where(x => x.Id == id).Select(y => y.Id).FirstOrDefault();
+                await shoppingCartService.DeleteShoppingCart(shoppingCartItem);
+            }
+            await load();
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            toastService.ShowWarning("Fields cannot be empty.");
+        }
+    }
+}
