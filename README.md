@@ -16,7 +16,15 @@ them with alerts.
 - Blazored.Toast 3.1.2
 - Identity
 ## Features
-- Display account details
+- Add items to cart
+- Manage order from the cart
+- Order summary
+- Order history
+- Notifying alerts
+- Administrator panel
+  - Manage users
+  - Manage companies
+  - Manage companies' items
 ## Screenshots
 ![Start](./img/1.png)
 ![Login](./img/2.png)
