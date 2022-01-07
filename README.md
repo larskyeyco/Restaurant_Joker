@@ -7,7 +7,8 @@ A Web Application management for restaurants.
 * [Project Status](#project-status)
 * [Contact](#contact)
 ## General Informations
-Application prompts user for login and password. After logging in we can add items into our order to the cart and from cart send it to realization. The application has an administrator panel where we can manage users and check history of orders but also we can add new companies and menu items. Application reacts to user actions notifying them with alerts.
+Application prompts user for login and password. After logging in we can add items into our order to the cart and from cart send it to performance. The application has an administrator panel where we can manage users and check history of orders, but also we can add new companies and menu items. Application reacts to user actions notifying
+them with alerts.
 ## Technologies Used
 - Entity Framework
 - Bootstrap
